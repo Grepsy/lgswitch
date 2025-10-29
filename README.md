@@ -8,8 +8,6 @@ This tool monitors your USB keyboard connection and automatically switches your 
 - **Keyboard connected** → Switches to HDMI 2
 - **Keyboard disconnected** → Switches to HDMI 3
 
-Ideal for KVM switch users who want their TV to automatically follow which computer is selected.
-
 ## Features
 
 - Monitors specific USB keyboard by Vendor/Product ID
@@ -22,7 +20,7 @@ Ideal for KVM switch users who want their TV to automatically follow which compu
 ## Requirements
 
 - **Hardware:**
-  - LG OLED TV (Model C3 or any WebOS TV)
+  - LG OLED TV (any WebOS TV)
   - Linux computer on same network as TV
   - USB keyboard (or KVM switch)
 
@@ -269,18 +267,6 @@ sudo loginctl enable-linger $USER
 
 This allows your user services to start even before you log in.
 
-### Test TV connection manually
-
-Using Python:
-```python
-from bscpylgtv import WebOsClient
-
-client = WebOsClient("192.168.1.100", client_key="YOUR_KEY")
-client.connect()
-client.launch_app("com.webos.app.hdmi2")
-client.disconnect()
-```
-
 ## How It Works
 
 1. **USB Monitoring**: Uses `pyudev` to monitor Linux kernel udev events for USB device additions/removals
@@ -305,13 +291,6 @@ lgswitch/
 ```
 
 ## Advanced Usage
-
-### Running with custom config location
-
-```bash
-# Not directly supported, but you can modify the script
-# Edit CONFIG_DIR in lgswitch.py and setup.py
-```
 
 ### Testing keyboard detection
 
