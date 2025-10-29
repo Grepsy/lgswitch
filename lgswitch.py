@@ -93,7 +93,7 @@ class TVSwitcher:
 
             # Create fresh connection for this command
             self.logger.debug(f"Connecting to TV at {self.tv_ip}...")
-            client = WebOsClient(self.tv_ip, storage=self.storage)
+            client = await WebOsClient.create(self.tv_ip, storage=self.storage)
             await client.connect()
 
             # Send command

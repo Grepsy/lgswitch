@@ -57,7 +57,7 @@ async def pair_with_tv(tv_ip):
         await storage.async_init()
 
         # Create client with initialized storage
-        client = WebOsClient(tv_ip, storage=storage)
+        client = await WebOsClient.create(tv_ip, storage=storage)
         await client.connect()
 
         # Verify connection was successful
@@ -89,7 +89,7 @@ async def test_tv_connection(tv_ip):
         await storage.async_init()
 
         # Create client with initialized storage
-        client = WebOsClient(tv_ip, storage=storage)
+        client = await WebOsClient.create(tv_ip, storage=storage)
         await client.connect()
 
         print("✓ Connected to TV successfully!")
