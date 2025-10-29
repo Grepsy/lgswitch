@@ -192,6 +192,9 @@ def save_config(tv_ip, keyboard):
         "hdmi": {
             "connected": "com.webos.app.hdmi2",
             "disconnected": "com.webos.app.hdmi3"
+        },
+        "screen": {
+            "turn_on_when_connected": True
         }
     }
 

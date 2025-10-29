@@ -30,10 +30,11 @@ LOG_FILE = CONFIG_DIR / "lgswitch.log"
 class TVSwitcher:
     """Manages TV connection and input switching"""
 
-    def __init__(self, tv_ip: str, hdmi_connected: str, hdmi_disconnected: str):
+    def __init__(self, tv_ip: str, hdmi_connected: str, hdmi_disconnected: str, turn_on_screen: bool = True):
         self.tv_ip = tv_ip
         self.hdmi_connected = hdmi_connected
         self.hdmi_disconnected = hdmi_disconnected
+        self.turn_on_screen = turn_on_screen
         self.client: Optional[WebOsClient] = None
         self.storage = None
         self.logger = logging.getLogger("TVSwitcher")
@@ -86,6 +87,10 @@ class TVSwitcher:
 
         self.logger.info(f"Keyboard {state_name}, switching to {hdmi_app}")
 
+        # Turn on screen if configured and keyboard connected
+        if connected and self.turn_on_screen:
+            await self.turn_screen_on()
+
         client = None
         try:
             # Initialize storage if not already done
@@ -106,6 +111,31 @@ class TVSwitcher:
 
         except Exception as e:
             self.logger.error(f"Failed to switch input: {e}")
+            if client:
+                try:
+                    await client.disconnect()
+                except:
+                    pass
+            return False
+
+    async def turn_screen_on(self) -> bool:
+        """Turn TV screen on"""
+        self.logger.info("Turning TV screen on")
+
+        client = None
+        try:
+            await self.initialize_storage()
+            client = await WebOsClient.create(self.tv_ip, storage=self.storage)
+            await client.connect()
+
+            await client.turn_screen_on()
+            self.logger.info("Successfully turned screen on")
+
+            await client.disconnect()
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to turn screen on: {e}")
             if client:
                 try:
                     await client.disconnect()
@@ -290,7 +320,8 @@ async def async_main():
     tv_switcher = TVSwitcher(
         tv_ip=config['tv_ip'],
         hdmi_connected=config['hdmi']['connected'],
-        hdmi_disconnected=config['hdmi']['disconnected']
+        hdmi_disconnected=config['hdmi']['disconnected'],
+        turn_on_screen=config.get('screen', {}).get('turn_on_when_connected', True)
     )
 
     # Initialize keyboard monitor

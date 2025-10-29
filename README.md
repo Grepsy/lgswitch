@@ -12,6 +12,7 @@ This tool monitors your USB keyboard connection and automatically switches your 
 
 - Monitors specific USB keyboard by Vendor/Product ID
 - Automatic TV input switching via LG WebOS API
+- Optional TV screen power control (turn on when keyboard connects)
 - Runs as background systemd service
 - Auto-start on boot
 - Logging for debugging
@@ -169,6 +170,9 @@ Configuration is stored in `~/.config/lgswitch/config.json`:
   "hdmi": {
     "connected": "com.webos.app.hdmi2",
     "disconnected": "com.webos.app.hdmi3"
+  },
+  "screen": {
+    "turn_on_when_connected": true
   }
 }
 ```
@@ -191,6 +195,29 @@ Example - switch between HDMI 1 and HDMI 4:
   "disconnected": "com.webos.app.hdmi4"
 }
 ```
+
+After editing, restart the service:
+```bash
+systemctl --user restart lgswitch.service
+```
+
+### Screen Power Control
+
+The application can automatically turn on your TV screen when the keyboard connects. This is enabled by default.
+
+To disable screen power control, edit the `screen` section:
+```json
+"screen": {
+  "turn_on_when_connected": false
+}
+```
+
+This feature is useful if:
+- Your TV screen is in standby/screen-off mode
+- You want the TV to wake up when you switch to this computer
+- You're using the TV with multiple devices
+
+**Note:** The screen will only turn ON when the keyboard connects. It will not turn off when disconnected - only the HDMI input will switch.
 
 After editing, restart the service:
 ```bash
