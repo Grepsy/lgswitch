@@ -86,20 +86,31 @@ class TVSwitcher:
 
         self.logger.info(f"Keyboard {state_name}, switching to {hdmi_app}")
 
-        # Try to connect if not already connected
-        if not self.client:
-            if not await self.connect():
-                return False
-
+        client = None
         try:
-            await self.client.launch_app(hdmi_app)
+            # Initialize storage if not already done
+            await self.initialize_storage()
+
+            # Create fresh connection for this command
+            self.logger.debug(f"Connecting to TV at {self.tv_ip}...")
+            client = WebOsClient(self.tv_ip, storage=self.storage)
+            await client.connect()
+
+            # Send command
+            await client.launch_app(hdmi_app)
             self.logger.info(f"Successfully switched to {hdmi_app}")
+
+            # Disconnect immediately
+            await client.disconnect()
             return True
 
         except Exception as e:
             self.logger.error(f"Failed to switch input: {e}")
-            # Disconnect and retry next time
-            await self.disconnect()
+            if client:
+                try:
+                    await client.disconnect()
+                except:
+                    pass
             return False
 
 
