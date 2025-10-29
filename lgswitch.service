@@ -1,12 +1,11 @@
 [Unit]
 Description=LG TV Auto-Switcher - USB Keyboard Monitor
-Documentation=file:///home/robert/funspace/lgswitch/README.md
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/home/robert/funspace/lgswitch/venv/bin/python /home/robert/funspace/lgswitch/lgswitch.py
+ExecStart=INSTALL_PATH/venv/bin/python INSTALL_PATH/lgswitch.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

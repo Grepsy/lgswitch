@@ -102,10 +102,11 @@ Press `Ctrl+C` to stop.
 
 For automatic startup and background operation:
 
-1. **Copy service file to systemd user directory:**
+1. **Create a customized service file with the correct path:**
    ```bash
    mkdir -p ~/.config/systemd/user
-   cp lgswitch.service ~/.config/systemd/user/
+   INSTALL_DIR=$(pwd)
+   sed "s|INSTALL_PATH|$INSTALL_DIR|g" lgswitch.service > ~/.config/systemd/user/lgswitch.service
    ```
 
 2. **Reload systemd configuration:**
