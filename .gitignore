@@ -20,3 +20,6 @@ build/
 
 # Local config
 .aiopylgtv.sqlite
+
+# Test scripts
+test_*.py

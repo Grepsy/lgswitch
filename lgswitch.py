@@ -38,6 +38,7 @@ class TVSwitcher:
         self.client: Optional[WebOsClient] = None
         self.storage = None
         self.logger = logging.getLogger("TVSwitcher")
+        self._cleanup_done = False
 
     async def initialize_storage(self):
         """Initialize storage once for reuse"""
@@ -80,16 +81,20 @@ class TVSwitcher:
             finally:
                 self.client = None
 
+    async def cleanup(self):
+        """Clean up all resources"""
+        if self._cleanup_done:
+            return
+        self._cleanup_done = True
+
+        await self.disconnect()
+
     async def switch_input(self, connected: bool) -> bool:
         """Switch TV input based on keyboard connection state"""
         hdmi_app = self.hdmi_connected if connected else self.hdmi_disconnected
         state_name = "connected" if connected else "disconnected"
 
         self.logger.info(f"Keyboard {state_name}, switching to {hdmi_app}")
-
-        # Turn on screen if configured and keyboard connected
-        if connected and self.turn_on_screen:
-            await self.turn_screen_on()
 
         client = None
         try:
@@ -101,7 +106,17 @@ class TVSwitcher:
             client = await WebOsClient.create(self.tv_ip, storage=self.storage)
             await client.connect()
 
-            # Send command
+            # Turn on screen if configured and keyboard connected
+            if connected and self.turn_on_screen:
+                try:
+                    self.logger.info("Turning TV screen on")
+                    await client.turn_screen_on()
+                    self.logger.info("Successfully turned screen on")
+                except Exception as e:
+                    self.logger.warning(f"Could not turn screen on: {e}")
+                    # Continue with HDMI switch even if screen control fails
+
+            # Switch HDMI input
             await client.launch_app(hdmi_app)
             self.logger.info(f"Successfully switched to {hdmi_app}")
 
@@ -111,31 +126,6 @@ class TVSwitcher:
 
         except Exception as e:
             self.logger.error(f"Failed to switch input: {e}")
-            if client:
-                try:
-                    await client.disconnect()
-                except:
-                    pass
-            return False
-
-    async def turn_screen_on(self) -> bool:
-        """Turn TV screen on"""
-        self.logger.info("Turning TV screen on")
-
-        client = None
-        try:
-            await self.initialize_storage()
-            client = await WebOsClient.create(self.tv_ip, storage=self.storage)
-            await client.connect()
-
-            await client.turn_screen_on()
-            self.logger.info("Successfully turned screen on")
-
-            await client.disconnect()
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Failed to turn screen on: {e}")
             if client:
                 try:
                     await client.disconnect()
@@ -249,21 +239,28 @@ class KeyboardMonitor:
         context = pyudev.Context()
         monitor = pyudev.Monitor.from_netlink(context)
         monitor.filter_by(subsystem='input')
+        monitor.start()
 
         self.logger.info("Monitor started. Waiting for keyboard events...")
         self.logger.info("Press Ctrl+C to stop")
 
-        # Start monitoring in a thread pool to avoid blocking
-        def poll_monitor():
-            for device in iter(monitor.poll, None):
-                if not self.running:
-                    break
-                action = device.action
-                if action in ('add', 'remove'):
-                    self.handle_device_event(action, device)
+        # Use non-blocking poll with timeout
+        def poll_with_timeout():
+            device = monitor.poll(timeout=0.5)
+            return device
 
-        # Run the blocking poll in an executor
-        await self.loop.run_in_executor(None, poll_monitor)
+        # Monitor loop with periodic checks for shutdown
+        while self.running:
+            try:
+                device = await self.loop.run_in_executor(None, poll_with_timeout)
+                if device and device.action in ('add', 'remove'):
+                    self.handle_device_event(device.action, device)
+            except Exception as e:
+                if self.running:  # Only log if we're not shutting down
+                    self.logger.error(f"Error in monitor loop: {e}")
+                break
+
+        self.logger.info("Monitor loop exited")
 
     def stop(self):
         """Stop monitoring"""
@@ -332,23 +329,53 @@ async def async_main():
         tv_switcher=tv_switcher
     )
 
-    # Set up signal handlers
-    def signal_handler(signum, frame):
-        logger.info(f"Received signal {signum}, shutting down...")
-        keyboard_monitor.stop()
+    # Get event loop for signal handling
+    loop = asyncio.get_running_loop()
+    shutdown_event = asyncio.Event()
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    # Set up async signal handlers
+    def signal_handler():
+        if not shutdown_event.is_set():
+            logger.info("Received shutdown signal, shutting down gracefully...")
+            keyboard_monitor.stop()
+            shutdown_event.set()
+
+    # Register signal handlers for SIGINT and SIGTERM
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
 
     # Start monitoring
     try:
-        await keyboard_monitor.start_monitoring()
+        # Run monitoring until shutdown signal
+        monitor_task = asyncio.create_task(keyboard_monitor.start_monitoring())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        # Wait for either monitoring to complete or shutdown signal
+        done, pending = await asyncio.wait(
+            {monitor_task, shutdown_task},
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # Cancel any remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        logger.info("Shutdown sequence initiated")
+
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
-        await tv_switcher.disconnect()
-        sys.exit(1)
     finally:
-        await tv_switcher.disconnect()
+        # Clean up resources
+        await tv_switcher.cleanup()
+        logger.info("Cleanup complete")
+
+        # Remove signal handlers
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.remove_signal_handler(sig)
 
 
 def main():
@@ -356,8 +383,10 @@ def main():
     try:
         asyncio.run(async_main())
     except KeyboardInterrupt:
-        print("\nShutdown complete.")
-        sys.exit(0)
+        # Should not reach here due to signal handlers, but just in case
+        pass
+    print("\nShutdown complete.")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

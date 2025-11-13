@@ -98,11 +98,11 @@ async def test_tv_connection(tv_ip):
         print("\nTesting HDMI switching...")
         print("Switching to HDMI 2...")
         await client.launch_app("com.webos.app.hdmi2")
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
 
         print("Switching to HDMI 3...")
         await client.launch_app("com.webos.app.hdmi3")
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
 
         print("✓ TV control test successful!")
 
